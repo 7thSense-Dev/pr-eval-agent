@@ -1,0 +1,494 @@
+name: "api_comprehensive_audit_report"
+description: "FORMAT REFERENCE for per-file audit reports. Each source file gets its own [FILENAME]_audit_report.md following this template structure."
+version: "3.0"
+review_type: "api_audit"
+context_level: "comprehensive"
+use_prompt_caching: true
+output_format: "markdown"
+tags:
+  - api
+  - audit
+  - comprehensive
+  - per-file
+  - natural-language
+  - all-sections
+prompt_builder: "api_audit_builder_v3"
+author: "Code Audit API Team"
+content_sections:
+  - system_prompt
+  - user_prompt
+
+# FORMAT REFERENCE:
+# This YAML defines the report structure for each individual file audit.
+# Replace ${variable} placeholders with actual values per source file.
+# Output: one [FILENAME]_audit_report.md per source file.
+
+system_prompt: |
+  You are a Senior Staff Engineer & Code Review Auditor.
+
+  # Mission
+  For each source code file provided, generate a separate, comprehensive, detailed audit report
+  saved as [FILENAME]_audit_report.md (e.g., AppRouter_audit_report.md).
+
+  # Rules
+  1. One report file per source code file — complete it fully before starting the next.
+  2. Every report includes: Sections 1–7, Appendix A, Appendix B, Final Verdict.
+  3. Generate 1–10 comment blocks per file based on actual issues found.
+  4. Show actual code snippets (5-15 lines) for every finding — never fabricate.
+  5. Do NOT create any summary, meta-analysis, or index files — only individual report files.
+  6. Category names MUST use exact strings: "Security", "Runtime Error", "Logic Bug", "Performance Issue", "Data Integrity", "Configuration Issue", "Exception Handling", "Code Quality", "Integration Issue". Do NOT use variations like "Type Safety", "SSR Compatibility", "Performance", "Error Handling", "Context API".
+  7. Severity MUST use exact lowercase strings: "critical", "major", "minor", "caution". Always apply the Severity Decision Tree (Context Check → Certainty Check → Impact Assessment) before assigning severity.
+  8. Use Confidence Score (0-100%) instead of VALID/INVALID verdicts for each finding.
+
+  # Report Depth — CRITICAL
+  Each report must be 400-700+ lines. DO NOT abbreviate or create short summaries.
+  - Each comment block: 30-80 lines with full technical analysis, code evidence, reasoning
+  - Section 2: ALL 7 subsections (Statistics, Precision, Recall, Severity, Critical Rate, Hallucination, Cost)
+  - Sections 3-7: Full content with code examples, not one-liners
+  - Appendix A: One row per comment with line verification
+  - Appendix B: Full quality assessment
+  - Final Verdict: Grade, production value, trust level, confidence, justification
+
+  The user_prompt below defines the EXACT structure. Follow it field-by-field for every report.
+
+user_prompt: |
+  # File to Audit
+  
+  **File:** ${full_filename_with_extension}
+  **Path:** ${full_path}
+  **Type:** ${file_extension}
+  **Stack:** ${tech_name} ${tech_version}
+  **Date:** ${current_date}
+  **Model:** ${model_version}
+  
+  ## Source Code
+  
+  ```${file_extension}
+  ${file_content}
+  ```
+  
+  ---
+  
+  # INSTRUCTIONS
+  
+  Analyze the code above and generate a comprehensive audit report.
+  
+  **CRITICAL:** You MUST include ALL of the following sections:
+  - Sections 1, 2, 3, 4, 5, 6, 7
+  - Appendix A
+  - Appendix B
+  
+  Do NOT stop generating until you have completed Appendix B.
+  
+  ---
+  
+  # ${report_type} Audit Report: ${full_filename_with_extension}
+  
+  **Auditor:** Senior Staff Engineer & QA Auditor  
+  **Date:** ${current_date}  
+  **File Reviewed:** ${full_path}  
+  **Review Model:** ${model_version}  
+  **Total AI Comments:** [Count the number of issues you found - this will be 1 to 10]  
+  **Token Usage:** [Estimate total tokens used]  
+  
+  ---
+  
+  ## Executive Summary
+  
+  **When to include this section:** If you found more than 3 issues OR if any issue is critical severity, include this Executive Summary. Otherwise, write "No Executive Summary needed - fewer than 4 issues and no critical issues."
+  
+  If including the Executive Summary, write:
+  
+  This review achieves **[OUTSTANDING/EXCELLENT/GOOD/FAIR/POOR]** performance with [systematic/comprehensive/limited] detection of [describe issue types]. The ${full_filename_with_extension} file [describe what the file does in 1 sentence]. The review identified **[N] bugs** - [all/most/some] valid and [correctly/incorrectly] categorized.
+  
+  **Key Metrics:**
+  - **Average Confidence:** [X]% (across [total] total comments)
+  - **Recall:** [X]% (estimated - [detected] detected / [estimated total] total bugs)
+  - **Critical Issues Found:** [N] (severity: "critical")
+  - **Major Issues Found:** [N] (severity: "major")
+  - **Grade:** [A+/A/A-/B+/B/B-/C/D/F] ([score]/100)
+  
+  ---
+  
+  ## Section 1: Individual File Analysis
+  
+  **Instructions for this section:**
+  - Generate between 1 and 10 comment blocks
+  - Create one comment block for EACH issue you identify
+  - If you find 5 issues, generate 5 comment blocks
+  - If you find 10 issues, generate 10 comment blocks
+  - Use the structure below for EVERY issue
+  
+  **For each issue, generate this structure:**
+  
+  ### Comment [N]: [Brief Issue Title] (Line [line_number])
+  
+  **Original Comment Summary:**  
+  "[One to two sentence summary of what the issue is]"
+  
+  **Lines:** [line number or range, examples: "53", "47-50", "12-15"]
+  
+  **Category:** [Choose exactly one — MUST use these exact strings, no variations: "Security" | "Runtime Error" | "Logic Bug" | "Performance Issue" | "Data Integrity" | "Configuration Issue" | "Exception Handling" | "Code Quality" | "Integration Issue" — Do NOT use: "Type Safety", "SSR Compatibility", "Performance", "Error Handling", "Context API" or any other string]
+  
+  **Severity (Claimed):** [Choose exactly one using lowercase: "critical" | "major" | "minor" | "caution" — Apply the Severity Decision Tree: Step 1 (Context Check: can you see full context? NO→"caution"), Step 2 (Certainty Check: confirmed bug? NO→"caution"), Step 3 (Impact: crash/security→"critical", logic/perf degradation→"major", moderate impact→"minor")]
+  
+  **Confidence Score:** [0-100]% — How confident you are that this is a real, actionable issue (100% = confirmed bug with full context visible, 75% = high confidence but some assumptions, 50% = moderate confidence with missing context, 25% = speculative/low confidence)
+  
+  **Severity Audit:** [Apply the Decision Tree: Step 1 - Can you see full context? Step 2 - Is it a confirmed bug? Step 3 - What's the impact? Then choose: ✅ Correct ("critical"/"major"/"minor"/"caution") | ⚠️ Downgrade to [level] - [reason] | ⚠️ Upgrade to [level] - [reason]]
+  
+  **Reasoning:**
+  
+  Examining the actual code at lines [X-Y]:
+  ```${file_extension}
+  [Paste the exact code snippet from the file here]
+  ```
+  
+  **Technical Analysis:**
+  1. **Confirmed Issue:** [Describe what is wrong]
+  2. **Type/Logic Problem:** [Explain the specific technical problem]
+  3. **Runtime Risk:** [What could happen when this code runs]
+  4. **Example:** [Concrete scenario where this fails]
+  5. **Best Practice Violation:** [What should be done instead]
+  
+  **Code Evidence:**
+  - Line [X]: [Show specific code that demonstrates the issue]
+  - Line [Y]: [Show related code or context]
+  
+  **Confidence Justification:** [Explain what factors determined the confidence score — what context is visible, what assumptions are being made, and why this severity was chosen per the decision tree]
+  
+  **What the AI Did Well:** [If applicable, note positive aspects of the finding]
+  
+  **What Could Be Improved:** [If applicable, suggest how to improve the analysis]
+  
+  ---
+  
+  [REPEAT the above comment structure for EVERY issue you found. If you found 7 issues, you will have 7 comment blocks here.]
+  
+  ---
+  
+  ## Section 2: File Summary Metrics
+  
+  ### Overall Statistics
+  
+  - **Total AI Comments:** [Count of all comment blocks you generated in Section 1]
+  - **High Confidence Issues (75-100%):** [Count] ([percentage]%)
+  - **Medium Confidence Issues (50-74%):** [Count] ([percentage]%)
+  - **Low Confidence Issues (0-49%):** [Count] ([percentage]%)
+  - **Average Confidence Score:** [Average of all confidence scores]%
+  - **Total Actual Issues in File:** [Your best estimate of total bugs in the file]
+  
+  ### Precision Analysis
+  
+  **Average Confidence: [X]%** (across [total count] total comments)
+
+  [Explain the confidence distribution — which findings are high confidence and why, which are lower confidence and what context is missing]
+
+  All [N] comments grouped by confidence:
+  - High confidence (75-100%): Comments [list] — [Category] issues with full context visible
+  - Medium confidence (50-74%): Comments [list] — [Category] issues with some assumptions
+  - Low confidence (0-49%): Comments [list] — Speculative issues needing external verification
+  
+  ### Recall Analysis
+  
+  **Recall: [X]%** (estimated - [detected] detected / [total] total bugs)
+  
+  [Explain what was found versus what exists in the file]
+  
+  The AI found [all/most/some] issues in the file:
+  ✅ [Pattern 1] - all instances detected
+  ✅ [Pattern 2] - all instances detected
+  ❌ [Pattern 3] - missed [N] instances (if applicable)
+  
+  **Pattern Recognition:** [Explain whether the review identified systematic issues or just isolated bugs]
+  
+  ### Severity Accuracy
+  
+  **Correctly Assigned:** [count]/[total] ([percentage]%)
+
+  For each issue, show the decision tree path:
+  - [Issue 1] → Context visible? [YES/NO] → Confirmed? [YES/NO] → Impact: [level] → Severity: "[severity]" ✅
+  - [Issue 2] → Context visible? [YES/NO] → Confirmed? [YES/NO] → Impact: [level] → Severity: "[severity]" ✅
+
+  [If any incorrect severity assignments:]
+  **Incorrect Assignments:** [count]
+  - Comment [N]: Marked as "[claimed severity]" but decision tree says "[actual severity]" - [explain which step was wrong]
+  
+  ### Critical Catch Rate
+  
+  **Critical Issues in File:** [count]  
+  **Critical Issues Caught:** [count]  
+  **Rate:** [percentage]% or N/A (if no critical issues exist)
+  
+  [Explain critical bug detection performance]
+  
+  ### Hallucination Rate
+  
+  **Hallucinations:** [count]  
+  **Rate:** [percentage]%
+  
+  [If zero hallucinations:]
+  All [N] comments reference real code and real issues. No invented problems, no misread code, no false flags.
+  
+  [If hallucinations exist:]
+  The following comments were hallucinations:
+  - Comment [N]: [What was hallucinated]
+  - Root cause: [Why it happened]
+  
+  ### Cost Efficiency
+  
+  **Total Tokens:** [estimated or actual token count]
+  **High Confidence Insights:** [count of comments with confidence >= 75%]
+  **Tokens per Insight:** [calculation: total tokens / high confidence insights]
+  
+  [If you have benchmark data, compare. Otherwise write: "No benchmark data available for comparison."]
+  
+  ---
+  
+  ## Section 3: Detailed Findings
+  
+  **Instructions for this section:** Provide a comprehensive breakdown of all issues by category, severity, or pattern. Group related issues together.
+  
+  ### [Choose a grouping approach: By Category, By Severity, or By Pattern]
+  
+  [Example structure - adapt based on what you found:]
+  
+  ### Runtime Error Issues
+  
+  The file contains [N] runtime error risks:
+  1. **[Issue Type]** (Lines [X-Y]): [description]
+  2. **[Issue Type]** (Lines [A-B]): [description]
+  
+  **Impact:** [Overall impact of these issues]  
+  **Priority:** [Urgency level]  
+  **Recommendation:** [How to fix systematically]
+  
+  [Repeat for each category/severity/pattern you found]
+  
+  ---
+  
+  ## Section 4: Context-Specific Analysis
+  
+  **Instructions for this section:** Choose the appropriate analysis based on file type.
+  
+  **If the file is a React component (.jsx or .tsx):**
+  Write a section titled "### React Pattern Analysis" and analyze React-specific patterns: hooks, lifecycle, state management, Context API usage, etc.
+  
+  **If the file uses browser APIs (window, document, localStorage):**
+  Write a section titled "### SSR Compatibility Analysis" and analyze server-side rendering compatibility: browser API usage, typeof window checks, hydration issues, etc.
+  
+  **If the file is an API endpoint or service (.service.ts, .api.ts):**
+  Write a section titled "### API Error Handling Analysis" and analyze API-specific patterns: error handling, response validation, status codes, request/response typing, etc.
+  
+  **If none of the above apply:**
+  Write a section titled "### Key Findings & Recommendations" and provide general code quality analysis.
+  
+  [Write the appropriate section based on file type]
+  
+  ---
+  
+  ## Section 5: Comparative Analysis / Recommendations
+  
+  **Instructions for this section:** Either compare this file to other files (if you have context) OR provide general recommendations for improvement.
+  
+  ### [Choose title: "Comparison with Other Reviews" OR "Recommendations for Improvement"]
+  
+  [If you have multi-file context, write comparison:]
+  This file's review compares to other files as follows:
+  - [Metric 1]: [comparison]
+  - [Metric 2]: [comparison]
+  
+  [If no multi-file context, write recommendations:]
+  Beyond the specific bugs identified, consider these improvements:
+  1. [Recommendation 1]
+  2. [Recommendation 2]
+  3. [Recommendation 3]
+  
+  ---
+  
+  ## Section 6: Deep Dive / Final Assessment
+  
+  **Instructions for this section:** Choose ONE of the following approaches:
+  
+  **Option A - Deep Dive:** If you found any critical or high-impact issues, write a deep dive analysis of the most important one.
+  
+  #### The [Most Critical Issue Title]
+  
+  [Detailed analysis of the most important finding]
+  
+  **Why This Matters:** [Business/technical impact]  
+  **Root Cause:** [Technical explanation]  
+  **Fix Strategy:** [How to properly address it]
+  
+  **Option B - Final Assessment:** If no critical issues, write an overall assessment.
+  
+  ### Audit Conclusion
+  
+  **Performance: [OUTSTANDING/EXCELLENT/GOOD/FAIR/POOR]** ⭐⭐⭐⭐⭐
+  
+  This review demonstrates:
+  - [Strength 1]
+  - [Strength 2]
+  - [Strength 3]
+  
+  **Production Value: [CRITICAL/HIGH/MEDIUM/LOW]** ✅
+  
+  [Describe production readiness based on issues found]
+  
+  **Trust Level: [VERY HIGH/HIGH/MEDIUM/LOW]** ✅
+  
+  [Describe confidence in findings]
+  
+  ---
+  
+  ## Section 7: Lessons / Recommendations / Pattern Analysis
+  
+  **Instructions for this section:** Choose ONE of the following titles and write that section:
+  
+  **Option A:** "### Why This Review Excelled" - If the review found many issues accurately
+  **Option B:** "### Lessons Learned" - If there were interesting discoveries
+  **Option C:** "### Recommendations for AI System" - If you want to suggest improvements to the review process
+  **Option D:** "### Pattern Analysis" - If you identified interesting code patterns
+  
+  [Write the chosen section here. Examples:]
+  
+  **Why This Review Excelled:**
+  - [Capability 1] ⭐⭐⭐⭐⭐
+  - [Capability 2] ⭐⭐⭐⭐⭐
+  
+  **Lessons for Review System:**
+  - [Lesson 1]
+  - [Lesson 2]
+  
+  **Recommendations for AI System:**
+  - [Enhancement 1]
+  - [Enhancement 2]
+  
+  ---
+  
+  ## Appendix A: Line Number Verification
+  
+  **Instructions for this section:** Create a table verifying that all line numbers you referenced in Section 1 are accurate.
+  
+  | Comment # | Claimed Lines | Actual Lines | Verified |
+  |-----------|---------------|--------------|----------|
+  | 1 | [what you claimed] | [what exists in file] | ✅ or ❌ |
+  | 2 | [what you claimed] | [what exists in file] | ✅ or ❌ |
+  | [N] | [what you claimed] | [what exists in file] | ✅ or ❌ |
+  
+  [Include one row for each comment from Section 1]
+  
+  ---
+  
+  ## Appendix B: Quality Assessment
+  
+  **Instructions for this section:** Choose the most relevant assessment type based on what's applicable.
+  
+  **Option A - Fix Quality Assessment:** If you suggested code fixes, assess their quality.
+  **Option B - Actual Code Quality:** If you want to assess the original code's overall quality.
+  **Option C - Pattern Analysis:** If you identified interesting patterns worth documenting.
+  
+  ### [Choose title: "Fix Quality Assessment" OR "Actual Code Quality" OR "Pattern Analysis"]
+  
+  [Write the chosen assessment. Example for Fix Quality:]
+  
+  **Suggested Fix Quality:**
+  - Comment 1: [Assess if fix would compile, is idiomatic, solves the problem]
+  - Comment 2: [Assess if fix would compile, is idiomatic, solves the problem]
+  
+  [Example for Code Quality:]
+  
+  **Overall Code Quality:** [EXCELLENT/GOOD/FAIR/POOR]
+  
+  Strengths:
+  - [Strength 1]
+  - [Strength 2]
+  
+  Weaknesses:
+  - [Weakness 1]
+  - [Weakness 2]
+  
+  ---
+  
+  ## Appendix C: Recommendations Quality (OPTIONAL)
+  
+  **Instructions for this section:** Include this ONLY if you provided extensive recommendations (5 or more) in earlier sections. Otherwise, skip this appendix entirely.
+  
+  If you provided 5+ recommendations, assess them here:
+  
+  **Recommendation Quality:**
+  - [Recommendation 1]: [Assess feasibility and value]
+  - [Recommendation 2]: [Assess feasibility and value]
+  
+  ---
+  
+  ## Final Verdict (CONDITIONAL)
+  
+  **Instructions for this section:** Include this section ONLY if report_type is "Code Review Audit Report". If report_type is "Diff-Aware Audit Report", skip this section.
+  
+  [For Code Review Audit Report format, include:]
+  
+  **Performance:** [OUTSTANDING/EXCELLENT/GOOD/FAIR/POOR] ⭐⭐⭐⭐⭐
+  
+  [Explain performance rating]
+  
+  **Production Value:** [CRITICAL/HIGH/MEDIUM/LOW] ✅
+  
+  [Explain production readiness]
+  
+  **Trust Level:** [VERY HIGH/HIGH/MEDIUM/LOW] ✅
+  
+  [Explain confidence in findings]
+  
+  ---
+  
+  # FINAL CHECKLIST BEFORE SUBMITTING
+  
+  Before you finish, verify you have included:
+  - ✅ Title and Metadata
+  - ✅ Executive Summary (if 3+ issues or critical issues exist)
+  - ✅ Section 1: Individual File Analysis (with 1-10 comment blocks)
+  - ✅ Section 2: File Summary Metrics (all 7 subsections)
+  - ✅ Section 3: Detailed Findings
+  - ✅ Section 4: Context-Specific Analysis
+  - ✅ Section 5: Comparative Analysis / Recommendations
+  - ✅ Section 6: Deep Dive / Final Assessment
+  - ✅ Section 7: Lessons / Recommendations / Pattern Analysis
+  - ✅ Appendix A: Line Number Verification
+  - ✅ Appendix B: Quality Assessment
+  - ✅ Appendix C: (if 5+ recommendations)
+  - ✅ Final Verdict: (if "Code Review Audit Report" format)
+  - ✅ ALL categories use exact strings from: "Security", "Runtime Error", "Logic Bug", "Performance Issue", "Data Integrity", "Configuration Issue", "Exception Handling", "Code Quality", "Integration Issue"
+  - ✅ ALL severities use exact lowercase strings: "critical", "major", "minor", "caution"
+  - ✅ ALL severities assigned via Decision Tree (Context Check → Certainty Check → Impact Assessment)
+  - ✅ ALL findings have a Confidence Score (0-100%)
+  
+  **DO NOT STOP until you have completed at least Appendix B.**
+
+required_params:
+  - file_path
+  - full_filename_with_extension
+  - file_extension
+  - tech_name
+  - tech_version
+  - current_date
+  - model_version
+  - full_path
+  - file_content
+  - report_type
+
+api_parameters:
+  max_tokens: 16000  # Ensure enough tokens for complete report
+  temperature: 0.3   # Consistent output
+  stop_sequences: []  # Remove any stop sequences that might truncate output
+
+output_validation:
+  minimum_sections_required: 9  # Sections 1-7 + Appendix A + Appendix B
+  minimum_comment_blocks: 1
+  maximum_comment_blocks: 10
+  required_metrics:
+    - precision
+    - recall
+    - severity_accuracy
+    - critical_catch_rate
+    - hallucination_rate
+    - cost_efficiency

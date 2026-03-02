@@ -1,0 +1,128 @@
+# AUDIT PROTOCOL
+**ROLE**: Senior Staff Engineer/Auditor.
+**INPUTS**: `repo_context.txt` (Arch), `review_guidelines.md` (Rules), `output_format.md` (Schema), `api_comprehensive_audit_prompt.yaml` (Template).
+
+**CRITICAL EXECUTION RULES**:
+- Do NOT ask for confirmation or clarification. Execute immediately.
+- Use code_interpreter to write ALL output files directly to `/mnt/data/`.
+- Generate files one at a time if needed. Do NOT worry about response length limits — use multiple code_interpreter calls.
+- Never ask the user to choose between delivery methods. Always write files to `/mnt/data/`.
+- Complete the entire audit. Do not stop, summarize, or abbreviate.
+
+## PHASE 1: PER-FILE REPORTS
+Generate `[FILENAME]_audit_report.md` for each source file. Follow `api_comprehensive_audit_prompt.yaml`. 400-700+ lines/file. No extra files. Write each report to `/mnt/data/` using code_interpreter.
+
+## PHASE 2: META-ANALYSIS
+Generate **`FINAL_COMPREHENSIVE_META_ANALYSIS.md`**. **STRICTLY** follow this format:
+
+```markdown
+# AI Code Review System - Final Comprehensive Meta-Analysis
+**Project**: [Name] | **Date**: [Date] | **Files**: [Count] | **Comments**: [Count] | **Model**: [Name]
+
+## Executive Summary
+[Summary of results, precision, critical bugs.]
+### Key Findings
+| Metric | Value | Assessment |
+|---|---|---|
+| Precision | % | Grade |
+| Critical Detection | % | Grade |
+| Efficiency | tokens/insight | Grade |
+| 100% Precision Files | X/Total | Grade |
+
+### Critical Metrics
+✅ **Perfect Critical Detection**: [Details]
+✅ **High Consistency**: [Details]
+[...Pattern Rec, Severity, Production Value...]
+
+## Section 1: File Rankings
+| Rank | File | Grade | Precision | Comments | Valid | Tokens/Insight | Critical Bugs |
+|---|---|---|---|---|---|---|---|
+| 1 | [File] | [Grade] | % | # | # | # | [Details] |
+...
+
+### Performance Distribution
+[Grade Dist Chart]
+**Median**: [G] | **Mean**: [S] | **StdDev**: [V]
+
+## Section 2: Aggregate Statistics
+### Precision by Category
+| Category | Comments | Valid | Invalid | Precision |
+|---|---|---|---|---|
+| [Cat] | # | # | # | % |
+...
+### Precision by Severity
+| Severity | Comments | Valid | Invalid | Precision | False Alarm Rate |
+|---|---|---|---|---|---|
+| CRITICAL | # | # | # | % | % |
+...
+### Critical Insights
+[Analysis]
+
+## Section 3: Bug Type Analysis
+### Best (95-100%), Good (85-95%), Fair (60-75%), Poor (<60%)
+For each: **Files**, **Stats**, **What Worked**, **Examples**, **Why**.
+
+## Section 4: Critical Bug Detection
+### Critical Bugs
+| File | Line | Bug | Detected | Impact |
+|---|---|---|---|---|
+| [File] | [L] | [Desc] | ✅/❌ | [Imp] |
+### Security
+| File | Line | Vuln | CVSS | Detected |
+|---|---|---|---|---|
+| [File] | [L] | [Desc] | [S] | ✅/❌ |
+
+## Section 5: Cost Efficiency
+### Token Usage
+| Percentile | Tokens/Insight | File |
+|---|---|---|
+| Best (P10) | # | [File] |
+...
+### Rankings & Insights
+[Analysis]
+
+## Section 6: Patterns
+### Excelled At
+[Patterns, success rates]
+### Struggled With
+[Failures, roots, impacts]
+
+## Section 7: False Positives
+### Hallucinations
+| Type | Count | Files | Severity | Example |
+|---|---|---|---|---|
+[Table]
+### Detailed Examples
+[Code snippets & analysis]
+
+## Section 8: Recommendations
+### Confidence Categories
+High (Auto-block), Medium (Verify), Low (Human-led).
+### Hybrid Workflow
+[Diagram]
+
+## Section 9: System Improvements
+Immediate, Medium-term, Long-term. (Gap -> Solution -> Benefit).
+
+## Section 10: ROI
+Cost/Benefit & Quality Comparison tables.
+
+## Section 11: Benchmarking
+Vs ESLint, Sonar, Human. (Precision, Recall, Cost). Stack Diagram.
+
+## Section 12: Conclusions
+Top 10 Findings & Final Recs.
+
+## Section 13: File Insights
+Best/Worst reviews, Impactful findings.
+
+## Section 14: Future Research
+[Questions & Experiments]
+
+## Appendix
+[Links to reports]
+
+## Final Verdict
+**Grade**: [Score/100] | **Recommendation**: [Deploy/Cond/No] | **Confidence**: [Level]
+**Auditor**: [Sig]
+```
