@@ -257,11 +257,11 @@ class ReviewDataExtractor:
                 result = cursor.fetchone()
                 latest_timestamp = result['latest_timestamp'] if result else None
 
+                print(f"Latest timestamp: {latest_timestamp}")
                 if not latest_timestamp:
                     print("No records found matching filters")
                     return []
 
-                print(f"Latest timestamp: {latest_timestamp}")
 
                 # Add timestamp filter
                 conditions.append("created_at = %s")
@@ -407,8 +407,57 @@ class ReviewDataExtractor:
             print(f"  Warning: Failed to fetch first seen time for PR {pr_number}: {e}")
             return None
 
+    def get_context_from_review_metrics(
+        self,
+        repository: str,
+        pr_number: str,
+        review_id: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Fetch project_context from review_eval_metrics.metadata_ by matching
+        repository, pr_number and status = 'success'.
+        Optionally narrows to a specific review_id for a more precise match.
+
+        Returns:
+            project_context string or None if not found.
+        """
+        conditions = [
+            "repository = %s",
+            "pr_number = %s",
+            "status = 'success'",
+        ]
+        params: list = [repository, str(pr_number)]
+
+        if review_id:
+            conditions.append("review_id = %s")
+            params.append(review_id)
+
+        where_clause = " AND ".join(conditions)
+        query = f"""
+            SELECT metadata_->>'project_context' AS project_context
+            FROM {FULL_TABLE_NAME}
+            WHERE {where_clause}
+            LIMIT 1
+        """
+
+        log_suffix = f", review_id='{review_id}'" if review_id else ""
+        try:
+            print(f"  Checking review_eval_metrics for project_context (repository='{repository}', pr_number='{pr_number}'{log_suffix})...")
+            with self.cursor() as cursor:
+                cursor.execute(query, tuple(params))
+                result = cursor.fetchone()
+                if result and result.get('project_context'):
+                    print(f"  Found project_context in review_eval_metrics.")
+                    return result['project_context']
+                print(f"  No project_context found in review_eval_metrics.")
+                return None
+        except Exception as e:
+            print(f"  Warning: Failed to fetch project_context from review_eval_metrics: {e}")
+            return None
+
     def get_repo_context(
         self,
+        repository,
         repo_id: str,
         pr_earliest_created_at: datetime
     ) -> Optional[str]:
@@ -474,7 +523,8 @@ class ReviewDataExtractor:
         repository: str,
         pr_number: str,
         output_dir: Optional[Path] = None,
-        cleanup_folder: bool = True
+        cleanup_folder: bool = True,
+        review_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Export data for a specific PR, including repo context.
@@ -521,16 +571,19 @@ class ReviewDataExtractor:
             # Fallback to the fetched reviews if the DB query fails for some reason
             pr_earliest_created_at = min(r['created_at'] for r in reviews if r.get('created_at'))
 
-        # 2b. Look up repo_id using our helper against repository_context table
-        print(f"  Fetching repo_id for '{repository}'...")
-        repo_id = self.get_repo_id_by_name(repository)
+        # 2b. First check review_eval_metrics.metadata_ for project_context
+        context = self.get_context_from_review_metrics(repository, pr_number, review_id=review_id)
 
-        context = None
-        if not repo_id:
-             print(f"  Warning: Could not find valid repo_id for '{repository}' in repository_context table")
-        else:
-            print(f"  Fetching repo context for repo_id '{repo_id}' (PR earliest: {pr_earliest_created_at})...")
-            context = self.get_repo_context(repo_id, pr_earliest_created_at)
+        if not context:
+            # Fallback: look up repo_id and query repository_context table
+            print(f"  Fetching repo_id for '{repository}'...")
+            repo_id = self.get_repo_id_by_name(repository)
+
+            if not repo_id:
+                print(f"  Warning: Could not find valid repo_id for '{repository}' in repository_context table")
+            else:
+                print(f"  Fetching repo context for repo_id '{repo_id}' (PR earliest: {pr_earliest_created_at})...")
+                context = self.get_repo_context(repository, repo_id, pr_earliest_created_at)
             
         
         # 3. Create Directories
@@ -1047,7 +1100,7 @@ class ReviewDataExtractor:
             pr_number=pr_number,
             latest_only=latest_only
         )
-
+        print(f"Total records fetched: {len(records)}")
         if not records:
             print("\nNo records found matching filters.")
             return 0

@@ -242,7 +242,8 @@ def extract_pr_data(args) -> dict:
         repository=args.repo,
         pr_number=args.pr,
         output_dir=PROJECT_ROOT,
-        cleanup_folder=True
+        cleanup_folder=True,
+        review_id=getattr(args, "review_id", None)
     )
 
 
@@ -459,6 +460,12 @@ async def main():
         choices=["claude", "openai"],
         default="openai",
         help="LLM provider (default: openai)"
+    )
+    parser.add_argument(
+        "--review-id",
+        default=None,
+        dest="review_id",
+        help="Optional review ID used for fetching repo context from eval metrics"
     )
     parser.add_argument(
         "--input-dir",
