@@ -5,6 +5,7 @@ File: services/axle/axle_service.py
 
 import os
 import json
+import zipfile
 import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -241,6 +242,10 @@ class AxleService:
 
             print(f"\n✓ Downloaded {len(downloaded)} artifact(s)")
 
+            # Remove any input files (from files.zip / log-files.zip) that leaked
+            # into reports_generated due to model extracting zips during code execution
+            self._cleanup_input_files_from_reports()
+
             # ===============================================================
             # STEP 5: SAVE LOGS TO METRICS FOLDER
             # ===============================================================
@@ -288,6 +293,33 @@ class AxleService:
             if self.current_adapter:
                 self.current_adapter.close_logging()
     
+    def _cleanup_input_files_from_reports(self) -> None:
+        """
+        Remove files that came from the uploaded input zips (files.zip, log-files.zip)
+        from reports_generated. These leak in when the model extracts the zips during
+        code execution and the extracted files get source='assistant'.
+        """
+        input_filenames: set = set()
+
+        for zip_name in ("files.zip", "log-files.zip"):
+            zip_path = self.uploads_dir / zip_name
+            if zip_path.exists():
+                with zipfile.ZipFile(zip_path, 'r') as z:
+                    for entry in z.namelist():
+                        input_filenames.add(Path(entry).name)
+
+        if not input_filenames:
+            return
+
+        removed = []
+        for f in self.artifacts_dir.iterdir():
+            if f.is_file() and f.name in input_filenames:
+                f.unlink()
+                removed.append(f.name)
+
+        if removed:
+            print(f"  Removed {len(removed)} input file(s) from reports_generated: {', '.join(sorted(removed))}")
+
     async def cleanup(self):
         """Cleanup all adapters"""
         for provider, adapter in self.adapters.items():

@@ -244,12 +244,13 @@ class ReviewDataExtractor:
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
-        # If latest_only, first find the latest timestamp
+        # If latest_only, find the latest timestamp where content exists
         if latest_only and conditions:
             latest_query = f"""
                 SELECT MAX(created_at) as latest_timestamp
                 FROM {FULL_TABLE_NAME}
                 {where_clause}
+                AND head_content IS NOT NULL
             """
 
             with self.cursor() as cursor:
