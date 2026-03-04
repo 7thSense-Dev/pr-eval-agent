@@ -13,6 +13,7 @@ import asyncio
 import traceback
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse
@@ -108,7 +109,8 @@ class Provider(str, Enum):
 class EvalResponse(BaseModel):
     pr_num: str
     repo_name: str
-    output_path: str
+    review_id: Optional[str] = None
+    output_path: Optional[str] = None
     message: str
 
 
@@ -135,7 +137,10 @@ async def run_evaluation(
     repo_name: str = Query(..., description="Repository in `owner/repo` format, e.g. `myorg/myrepo`"),
     approach: Approach = Query(..., description="Review approach: `extract_only` | `axle` | `llm`"),
     provider: Provider = Query(Provider.openai, description="LLM provider: `openai` or `claude`. Optional — defaults to `openai`. Only used when approach is `llm`."),
+    review_id: Optional[str] = Query(None, description="Optional review_id to narrow the database extraction"),
 ) -> EvalResponse:
+    pr_number = pr_number.strip()
+    repo_name = repo_name.strip()
     # -----------------------------------------------------------------------
     # Step 1 – DB extraction
     # -----------------------------------------------------------------------
@@ -146,11 +151,13 @@ async def run_evaluation(
             pr_number=pr_number,
             output_dir=PROJECT_ROOT,
             cleanup_folder=True,
+            review_id=review_id,
         )
     except Exception as exc:
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
+            review_id=review_id,
             output_path="",
             message=f"failed: DB extraction error — {exc}",
         )
@@ -159,6 +166,7 @@ async def run_evaluation(
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
+            review_id=review_id,
             output_path="",
             message=f"failed: {export.get('message', 'No reviews found for this PR')}",
         )
@@ -174,6 +182,7 @@ async def run_evaluation(
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
+            review_id=review_id,
             output_path=output_path,
             message="success",
         )
@@ -188,7 +197,7 @@ async def run_evaluation(
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
-            output_path=output_path,
+            review_id=review_id,
             message=f"failed: Template copy error — {type(exc).__name__}: {exc}",
         )
 
@@ -202,7 +211,7 @@ async def run_evaluation(
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
-            output_path=output_path,
+            review_id=review_id,
             message=f"failed: File list error — {type(exc).__name__}: {exc}",
         )
 
@@ -211,7 +220,7 @@ async def run_evaluation(
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
-            output_path=output_path,
+            review_id=review_id,
             message=f"failed: Prompt file not found at {prompt_path}",
         )
 
@@ -227,13 +236,14 @@ async def run_evaluation(
         return EvalResponse(
             pr_num=pr_number,
             repo_name=repo_name,
-            output_path=output_path,
+            review_id=review_id,
             message=f"failed: Review pipeline error — {exc}",
         )
 
     return EvalResponse(
         pr_num=pr_number,
         repo_name=repo_name,
+        review_id=review_id,
         output_path=output_path,
         message="success" if success else "failed: Review pipeline returned a non-zero exit code",
     )

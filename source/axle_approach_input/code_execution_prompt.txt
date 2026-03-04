@@ -48,23 +48,31 @@ Five inputs are provided:
    classification decision tree, and what constitutes a valid issue in each
    category. Apply these STRICTLY with no leniency.
 
-4. `repo_context.txt` — Full repository context: 121 files, 31,194 lines across
-   the entire codebase. This file was **uploaded to the axle LLM** as
-   `project_context.md` before each review run (visible as the largest entry
-   in `uploaded_files` in every `_metrics.json`). The axle LLM therefore had
-   full repository awareness when making every review decision. Use this file
-   as **ground truth for the full context the axle LLM had access to**:
-   - Verify whether callers or dependents outside the PR files are affected by
-     a change (e.g. breaking interface changes, renamed exports).
-   - Check whether a pattern flagged as an issue already exists and is handled
-     elsewhere in the codebase.
-   - Identify missed issues involving cross-file impact — the axle LLM had
-     the information to catch these; failure to do so is a stronger indictment.
-   - Understand architectural conventions the PR should follow.
+4. `project_context.txt` (Project Context) — Project Context provides a
+   comprehensive, repository-wide intelligence overlay for the code changes in
+   this Pull Request. It is provided as pre-rendered Markdown and will always
+   explicitly state if data is found, if a check yielded no results, or if a
+   check could not be performed.
 
-   **Implication for evaluation**: Because the axle LLM had the full repo
+   This file was **uploaded to the axle LLM** as `project_context.txt` before
+   each review run (visible as the largest entry in `uploaded_files` in every
+   `_metrics.json`). The axle LLM therefore had full repository awareness when
+   making every review decision.
+
+   When provided, utilize the Project Context to:
+   - **Assess Impact**: Review the "Impact Analysis" to identify if downstream
+     dependencies (direct or indirect callers) will break due to these changes.
+   - **Prevent Collisions**: Check "Conflict Warnings" to ensure these changes
+     do not collide logically or structurally with other in-flight Pull Requests.
+   - **Ensure Consistency**: Use "Semantic Neighbors" to verify if the new code
+     aligns with established patterns or similar solutions elsewhere in the
+     repository.
+   - **Understand Flow**: Follow the "Call Chains" to understand the broader
+     execution paths leading to or from the modified functions.
+
+   **Implication for evaluation**: Because the axle LLM had the full project
    context, speculative or hedged comments about possible cross-file impact
-   should be judged against the actual evidence available in `repo_context.txt`.
+   should be judged against the actual evidence available in `project_context.txt`.
    If the answer is clearly present there, a "caution" severity is more likely
    model non-compliance than a prompt failure.
 
@@ -116,10 +124,19 @@ A complete JSON object. Extract:
 - `agent_decisions` — is `null` in all runs; model/provider info is not
   available from this field
 
-### `repo_context.txt`
+### `project_context.txt` (Project Context)
 
-A structured analysis of the full repository — this is what the axle LLM
-received as `project_context.md`. Key sections to query:
+Project Context provides a comprehensive, repository-wide intelligence overlay
+for the code changes in this Pull Request — this is what the axle LLM received
+as `project_context.txt`. Key sections to query:
+- **Impact Analysis** — identify downstream dependencies (direct/indirect
+  callers) that may break due to these changes.
+- **Conflict Warnings** — check for logical or structural collisions with other
+  in-flight Pull Requests.
+- **Semantic Neighbors** — verify whether the new code aligns with similar
+  patterns or established solutions elsewhere in the repository.
+- **Call Chains** — follow execution paths leading to or from the modified
+  functions.
 - **Function Reference Map** — find all callers of a changed function to verify
   whether a breaking-change comment is justified and whether the LLM should
   have known the blast radius.
@@ -184,7 +201,7 @@ total but do not include them in precision, accuracy, or other quality metrics.
 ### Step 1: Extract & Inventory
 
 1. Unzip `log-files.zip` and `files.zip`.
-2. Confirm that `review_guidelines.md`, `repo_context.txt`, and `output_format.md`
+2. Confirm that `review_guidelines.md`, `project_context.txt`, and `output_format.md`
    are present alongside the archives.
 3. List all source files found in `files.zip`.
 4. For each source file, check which log files exist in `log-files.zip`
@@ -890,9 +907,9 @@ immediate next step.]
 ## Now Begin
 
 1. Confirm all 5 inputs are available: `log-files.zip`, `files.zip`,
-   `review_guidelines.md`, `repo_context.txt`, `output_format.md`.
+   `review_guidelines.md`, `project_context.txt`, `output_format.md`.
    Unzip the two archives and inventory all files.
-2. For each source file: parse logs → read source → consult `repo_context.txt`
+2. For each source file: parse logs → read source → consult `project_context.txt`
    as needed → evaluate all comments → write `[FILENAME]_eval_report.md`
    with all 7 sections complete.
 3. After all per-file reports: write `AXLE_EVAL_META_ANALYSIS.md` with all

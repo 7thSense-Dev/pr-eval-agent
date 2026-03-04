@@ -227,7 +227,7 @@ def extract_pr_data(args) -> dict:
         uploaded_to_eval_agent/
           files.zip         ← changed file content
           log-files.zip     ← prompts, metrics, responses
-          repo_context.txt  ← if found in DB
+          project_context.md  ← if found in DB
         reports_generated/  ← to be filled by review step
         metrics/            ← to be filled by review step
 
@@ -256,7 +256,7 @@ def copy_templates(pr_dir: Path, review_approach: str, input_dir: Path) -> None:
     Step 2: Copy template files from input_dir into the PR folder root.
 
     Templates land at tmp/poc/<PR_DIR>/ (NOT inside uploaded_to_eval_agent/).
-    DB exports (zips, repo_context) remain inside uploaded_to_eval_agent/.
+    DB exports (zips, project_context.md) remain inside uploaded_to_eval_agent/.
 
     Axle: copies code_execution_prompt.txt, api_comprehensive_audit_prompt.yaml,
           output_format.md, review_guidelines.md
@@ -303,7 +303,7 @@ def build_file_paths(pr_dir: Path, uploaded_dir: Path, review_approach: str) -> 
 
     Combines:
     - Template files from pr_dir/ (copied from axle_input/ or llm_input/)
-    - DB exports from uploaded_to_eval_agent/ (zips + repo_context.txt)
+    - DB exports from uploaded_to_eval_agent/ (zips + project_context.md)
 
     Args:
         pr_dir:          Path to the PR folder root.
@@ -383,7 +383,7 @@ async def run_axle_mode(args, pr_result: dict, input_dir: Path) -> int:
     """
     Axle Review:
       - Copies templates from axle_input/ into uploaded_to_eval_agent/
-      - repo_context.txt already there from DB extraction
+      - project_context.md already there from DB extraction
       - Uploads all files from uploaded_to_eval_agent/
       - Runs AxleService
       - Saves reports → reports_generated/, logs → metrics/

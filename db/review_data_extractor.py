@@ -250,7 +250,7 @@ class ReviewDataExtractor:
                 SELECT MAX(created_at) as latest_timestamp
                 FROM {FULL_TABLE_NAME}
                 {where_clause}
-                AND head_content IS NOT NULL
+                AND template_name != 'review_summary'
             """
 
             with self.cursor() as cursor:
@@ -602,12 +602,12 @@ class ReviewDataExtractor:
         # 4. Write Repo Context
         repo_context_file = None
         if context:
-            context_file = pr_dir / "repo_context.txt"
+            context_file = pr_dir / "project_context.txt"
             self._write_text_file(context, str(context_file))
-            print(f"  Saved repo context to: {context_file.name}")
+            print(f"  Saved project context to: {context_file.name}")
             repo_context_file = str(context_file)
         else:
-            print("  No repo context found.")
+            print("  No project context found.")
 
         # 5. Export Files
         result = self._export_pr_data(
