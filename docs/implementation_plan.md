@@ -171,11 +171,11 @@ Returns files from two locations:
 python flow_evaluation.py --pr 123 --repo owner/repo --mode extract_only
 
 # Axle review (provider defaults to openai)
-python flow_evaluation.py --pr 123 --repo owner/repo --review-approach axle
+python flow_evaluation.py --pr 123 --repo owner/repo  --review-id 1123456 --review-approach axle
 
 # LLM review with claude
-python flow_evaluation.py --pr 123 --repo owner/repo --review-approach llm --provider claude
+python flow_evaluation.py --pr 123 --repo owner/repo --review-id 546543 --review-approach llm --provider claude
 
 # Custom input folder (future: DB-sourced)
-python flow_evaluation.py --pr 123 --repo owner/repo --review-approach axle --input-dir /path/to/inputs/
+python flow_evaluation.py --pr 123 --repo owner/repo review-id 456765 --review-approach axle --input-dir /path/to/inputs/
 ```
