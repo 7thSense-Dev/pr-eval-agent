@@ -6,7 +6,9 @@ Single entry-point that:
   1. Extracts PR data from DB (files, logs, repo context) into tmp/poc/<PR_DIR>/
   2. Copies mode-specific template files from axle_input/ or llm_input/ (project root)
      into the PR's uploaded_to_eval_agent/ folder — making each run self-contained.
-  3. Routes to either the LLM PipelineOrchestrator or the AxleService review engine.
+  3. Routes to the AxleService review engine for both approaches.
+     The only difference between 'axle' and 'llm' approaches is the input files
+     (source/axle_approach_input/ vs source/llm_approach_input/).
 
 Usage:
     # DB extraction only
@@ -341,24 +343,21 @@ def build_file_paths(pr_dir: Path, uploaded_dir: Path, review_approach: str) -> 
 async def run_llm_mode(args, pr_result: dict, input_dir: Path) -> int:
     """
     LLM Review:
-      - Copies templates from llm_input/ into uploaded_to_eval_agent/
-      - Uploads all files from uploaded_to_eval_agent/
-      - Runs PipelineOrchestrator
+      - Copies templates from llm_input/ into the PR folder
+      - Uploads all files (templates + DB exports) to AxleService
+      - Runs AxleService (same evaluation engine as axle mode)
       - Saves reports → reports_generated/, logs → metrics/
+
+    Only the INPUT files differ from axle mode (source/llm_approach_input/
+    vs source/axle_approach_input/). The evaluation engine is always AxleService.
     """
     pr_dir = Path(pr_result["pr_dir"])
     uploaded_dir = pr_dir / "uploaded_to_eval_agent"
-    reports_dir = pr_dir / "reports_generated"
-    metrics_dir = pr_dir / "metrics"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    metrics_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*70}")
-    print("LLM REVIEW MODE")
+    print("LLM REVIEW MODE (via AxleService)")
     print(f"{'='*70}")
-    print(f"PR Dir      : {pr_dir}")
-    print(f"Reports Dir : {reports_dir}")
-    print(f"Metrics Dir : {metrics_dir}")
+    print(f"PR Dir   : {pr_dir}")
 
     # Step 2: Copy templates into PR folder root
     copy_templates(pr_dir, "llm", input_dir)
@@ -372,11 +371,28 @@ async def run_llm_mode(args, pr_result: dict, input_dir: Path) -> int:
         print(f"✗ Prompt file not found: {prompt_path}")
         return 1
 
-    orchestrator = PipelineOrchestrator(
-        provider_id=args.provider,
-        output_dir=str(metrics_dir)
+    axle_service = AxleService(
+        project_root=PROJECT_ROOT,
+        pr_dir=str(pr_dir)
     )
-    return orchestrator.run(file_paths, prompt_path, reports_dir=reports_dir)
+    try:
+        result = await axle_service.execute_task(
+            provider=args.provider,
+            file_paths=file_paths,
+            prompt_path=prompt_path
+        )
+
+        if result["success"]:
+            print("\n✓ LLM review (via AxleService) completed successfully!")
+            print(f"  Reports: {result.get('artifacts_dir', pr_dir / 'reports_generated')}")
+            print(f"  Metrics: {result.get('metrics_dir', pr_dir / 'metrics')}")
+        else:
+            print("\n✗ LLM review failed.")
+
+        return 0 if result["success"] else 1
+
+    finally:
+        await axle_service.cleanup()
 
 
 async def run_axle_mode(args, pr_result: dict, input_dir: Path) -> int:
