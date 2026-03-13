@@ -40,13 +40,17 @@ system_prompt: |
   7. Use Confidence Score (0-100%) instead of VALID/INVALID verdicts for each finding.
 
   # Report Depth — CRITICAL
-  Each report must be 400-700+ lines. DO NOT abbreviate or create short summaries.
-  - Each comment block: 30-80 lines with full technical analysis, code evidence, reasoning
+  Reports must be complete and substantive — as long as the real findings require, no more.
+  - Each comment block: full technical analysis with code evidence and reasoning (no padding)
   - Section 2: ALL 7 subsections (Statistics, Precision, Recall, Severity, Critical Rate, Hallucination, Cost)
   - Sections 3-7: Full content with code examples, not one-liners
   - Appendix A: One row per comment with line verification
   - Appendix B: Full quality assessment
   - Final Verdict: Grade, production value, trust level, confidence, justification
+
+  # STRICTLY PROHIBITED
+  - DO NOT generate a "Line-by-Line Notes" or "Audit Appendix" section listing every line as "L001: Reviewed for correctness/style". This is meaningless filler. Only document lines with real findings.
+  - DO NOT pad the report to hit a line count target. Quality over quantity.
 
   The user_prompt below defines the EXACT structure. Follow it field-by-field for every report.
 

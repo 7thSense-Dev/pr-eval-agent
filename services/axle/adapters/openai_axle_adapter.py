@@ -744,20 +744,41 @@ class OpenAIAxleAdapter(BaseAxleAdapter):
                         content_bytes = file_response.read()
                     else:
                         content_bytes = bytes(file_response)
-                    
-                    # Save file with clean filename for artifacts folder
-                    # Try to get original filename from file_info, fallback to file_id based name
-                    if hasattr(file_info, 'filename') and file_info.filename:
-                        filename = file_info.filename
-                    elif hasattr(file_info, 'path') and file_info.path:
-                        filename = Path(file_info.path).name
-                    else:
-                        # Fallback: use file_id with .json extension
-                        filename = file_info.id.replace('cfile_', 'output_')
-                        if not filename.endswith('.json') and not filename.endswith('.md'):
-                            filename += '.json'
 
+                    # Decode for content inspection and naming
+                    try:
+                        content_text = content_bytes.decode('utf-8', errors='replace')
+                    except Exception:
+                        content_text = ''
+
+                    # --------------------------------------------------------
+                    # FILTER: skip source/input files leaked from uploaded zips.
+                    # Evaluation reports always start with a markdown '#' heading.
+                    # Source code files start with imports, class declarations, etc.
+                    # --------------------------------------------------------
+                    first_line = content_text.lstrip().split('\n')[0].strip() if content_text else ''
+                    if not first_line.startswith('#'):
+                        print(f"   ⏭  Skipping non-report file (source code): {file_info.id}")
+                        continue
+
+                    # --------------------------------------------------------
+                    # NAMING: derive a meaningful filename from the report content.
+                    # Priority:
+                    #   1. Parse '# ... Audit Report — `path/to/file.ext`' header
+                    #      → '<parent>_<stem>_eval_report.md'
+                    #   2. Meta/summary report keywords → 'meta_analysis_report.md'
+                    #   3. Fallback → 'eval_report.md'
+                    # --------------------------------------------------------
+                    filename = self._derive_report_filename(content_text)
+
+                    # Avoid collisions if the same base name appears more than once
                     local_path = downloads_dir / filename
+                    stem = Path(filename).stem
+                    ext = Path(filename).suffix
+                    counter = 1
+                    while local_path.exists():
+                        local_path = downloads_dir / f"{stem}_{counter}{ext}"
+                        counter += 1
 
                     with open(local_path, 'wb') as f:
                         f.write(content_bytes)
@@ -765,10 +786,10 @@ class OpenAIAxleAdapter(BaseAxleAdapter):
                     file_size_kb = local_path.stat().st_size / 1024
                     self._log_download_success(local_path, file_size_kb)
 
-                    downloaded[filename] = {
+                    downloaded[local_path.name] = {
                         'file_id': file_info.id,
                         'local_path': str(local_path),
-                        'filename': filename,
+                        'filename': local_path.name,
                         'size_kb': file_size_kb,
                         'size_bytes': file_info.bytes if hasattr(file_info, 'bytes') else None
                     }
@@ -787,6 +808,42 @@ class OpenAIAxleAdapter(BaseAxleAdapter):
             traceback.print_exc()
             raise
     
+    def _derive_report_filename(self, content_text: str) -> str:
+        """Derive a meaningful filename from the audit report markdown content.
+
+        Strategy:
+        1. Parse '# Comprehensive Audit Report — `path/to/file.ext`'
+           → '<parent>_<stem>_eval_report.md'
+        2. Meta/summary keywords in the first heading
+           → 'meta_analysis_report.md'
+        3. Fallback → 'eval_report.md'
+        """
+        import re
+
+        first_heading = ''
+        for line in content_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('#'):
+                first_heading = stripped
+                break
+
+        # Pattern: heading contains a backtick-quoted file path
+        backtick_match = re.search(r'`([^`]+)`', first_heading)
+        if backtick_match:
+            file_path = backtick_match.group(1)
+            stem = Path(file_path).stem       # e.g. "index" from "src/hooks/index.js"
+            parent = Path(file_path).parent.name  # e.g. "hooks"
+            if parent and parent not in ('.', ''):
+                return f"{parent}_{stem}_eval_report.md"
+            return f"{stem}_eval_report.md"
+
+        # Meta / summary report
+        lower = first_heading.lower()
+        if any(kw in lower for kw in ('meta', 'summary', 'analysis', 'overall')):
+            return 'meta_analysis_report.md'
+
+        return 'eval_report.md'
+
     def __del__(self):
         """Cleanup on deletion"""
         if hasattr(self, 'tee') and self.tee:

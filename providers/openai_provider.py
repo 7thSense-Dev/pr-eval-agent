@@ -746,8 +746,12 @@ class OpenAIProvider(BaseConversationProvider):
             print(f"\n✗ Failed to download container files: {e}")
             raise
     
-    def _download_container_file(self, container_id: str, file_id: str, downloads_dir: Path) -> Dict[str, Any]:
-        """Download a specific file from OpenAI container"""
+    def _download_container_file(self, container_id: str, file_id: str, downloads_dir: Path) -> Optional[Dict[str, Any]]:
+        """Download a specific file from OpenAI container.
+
+        Returns None if the file is a source/input file (not an evaluation report).
+        Names the file meaningfully from the markdown audit report header.
+        """
         print(f"\n📥 Downloading: {file_id}")
         
         try:
@@ -766,13 +770,41 @@ class OpenAIProvider(BaseConversationProvider):
                 content_bytes = file_response.read()
             else:
                 content_bytes = bytes(file_response)
-            
-            # Determine filename
-            filename = file_id.replace('cfile_', 'output_')
-            if not filename.endswith('.json'):
-                filename += '.json'
-            
+
+            # Decode for content inspection and naming
+            try:
+                content_text = content_bytes.decode('utf-8', errors='replace')
+            except Exception:
+                content_text = ''
+
+            # ----------------------------------------------------------------
+            # FILTER: skip source/input files leaked from uploaded zips.
+            # Evaluation reports always start with a markdown '#' heading.
+            # Source code files start with imports, class declarations, etc.
+            # ----------------------------------------------------------------
+            first_line = content_text.lstrip().split('\n')[0].strip() if content_text else ''
+            if not first_line.startswith('#'):
+                print(f"   ⏭  Skipping non-report file (source code): {file_id}")
+                return None
+
+            # ----------------------------------------------------------------
+            # NAMING: derive a human-readable filename from the report content.
+            # Priority:
+            #   1. Parse '# ... Audit Report — `path/to/file.ext`' header
+            #      → '<parent>_<stem>_eval_report.md'
+            #   2. Meta/summary keywords → 'meta_analysis_report.md'
+            #   3. Fallback → 'eval_report.md'
+            # ----------------------------------------------------------------
+            filename = self._derive_report_filename(content_text)
+
+            # Avoid overwriting if same name exists
             local_path = downloads_dir / filename
+            stem = Path(filename).stem
+            ext = Path(filename).suffix
+            counter = 1
+            while local_path.exists():
+                local_path = downloads_dir / f"{stem}_{counter}{ext}"
+                counter += 1
             
             with open(local_path, 'wb') as f:
                 f.write(content_bytes)
@@ -783,14 +815,48 @@ class OpenAIProvider(BaseConversationProvider):
             return {
                 'file_id': file_id,
                 'local_path': str(local_path),
-                'filename': filename,
+                'filename': local_path.name,
                 'size_kb': file_size_kb
             }
             
         except Exception as e:
             self._log_download_error(e)
             raise
-    
+
+    def _derive_report_filename(self, content_text: str) -> str:
+        """Derive a meaningful filename from the audit report markdown content.
+
+        Strategy:
+        1. Parse '# ... Audit Report — `path/to/file.ext`' → '<parent>_<stem>_eval_report.md'
+        2. Meta/summary keywords in first heading → 'meta_analysis_report.md'
+        3. Fallback → 'eval_report.md'
+        """
+        import re
+
+        first_heading = ''
+        for line in content_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('#'):
+                first_heading = stripped
+                break
+
+        # Pattern: heading contains a backtick-quoted file path
+        backtick_match = re.search(r'`([^`]+)`', first_heading)
+        if backtick_match:
+            file_path = backtick_match.group(1)
+            stem = Path(file_path).stem        # e.g. "index" from "src/hooks/index.js"
+            parent = Path(file_path).parent.name  # e.g. "hooks"
+            if parent and parent not in ('.', ''):
+                return f"{parent}_{stem}_eval_report.md"
+            return f"{stem}_eval_report.md"
+
+        # Meta / summary report
+        lower = first_heading.lower()
+        if any(kw in lower for kw in ('meta', 'summary', 'analysis', 'overall', 'final', 'comprehensive')):
+            return 'meta_analysis_report.md'
+
+        return 'eval_report.md'
+
     def __del__(self):
         """Cleanup on deletion"""
         if hasattr(self, 'tee') and self.tee:
