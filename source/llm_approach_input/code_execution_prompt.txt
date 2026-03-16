@@ -25,7 +25,7 @@ improve its performance.
 
 ## Input Files
 
-Five inputs are provided:
+Three inputs are provided:
 
 1. `log-files.zip` — Per-file log data from the axle approach. For each source
    file `[FILENAME]`, there are up to 3 log files:
@@ -43,12 +43,7 @@ Five inputs are provided:
 2. `files.zip` — The actual PR diff source code files. Use these as primary
    ground truth when judging whether flagged issues are real in the changed code.
 
-3. `review_guidelines.md` — **Authoritative reference for all evaluation
-   judgments.** Defines permitted category names, severity levels, the severity
-   classification decision tree, and what constitutes a valid issue in each
-   category. Apply these STRICTLY with no leniency.
-
-4. `project_context.txt` (Project Context) — Project Context provides a
+3. `project_context.txt` (Project Context) — Project Context provides a
    comprehensive, repository-wide intelligence overlay for the code changes in
    this Pull Request. It is provided as pre-rendered Markdown and will always
    explicitly state if data is found, if a check yielded no results, or if a
@@ -76,10 +71,18 @@ Five inputs are provided:
    If the answer is clearly present there, a "caution" severity is more likely
    model non-compliance than a prompt failure.
 
-5. `output_format.md` — The exact JSON schema specification uploaded to the
-   axle LLM, defining required fields, JSON escaping rules, and non-overrideable
-   constraints. Use this in **Section 5 (Prompt Instruction Compliance)** to
-   check whether the axle output conforms to the schema it was given.
+## Review Guidelines and Output Format
+
+The review guidelines (permitted categories, severity levels, severity decision
+tree, focus areas) and the output format schema are **embedded directly within
+each `[FILENAME]_prompt.txt`** file in `log-files.zip`. They are NOT provided as
+separate files.
+
+When evaluating, extract the category definitions, severity definitions, severity
+classification decision tree, focus areas, and output format/JSON schema from the
+`_prompt.txt` files themselves. These embedded instructions serve as the
+authoritative reference for all evaluation judgments — use them exactly as the
+axle LLM received them.
 
 ---
 
@@ -102,6 +105,18 @@ Structure:
 Extract from this file:
 - **Axle prompt instructions**: The system instructions at the top — you will
   need these for the Prompt Instruction Compliance check.
+- **Category Definitions**: The section titled "Category Definitions (MUST USE
+  EXACT STRINGS)" — lists all permitted category strings and their descriptions.
+  Use these as the authoritative reference for category accuracy checks.
+- **Severity Definitions**: The section titled "Severity Definitions (MUST USE
+  EXACT STRINGS)" — lists all permitted severity levels.
+- **Severity Classification Decision Tree**: The decision tree (Context Check →
+  Certainty Check → Impact Assessment) — use this to independently determine the
+  correct severity for each comment.
+- **Focus Areas**: The section "Focus Areas — Organized by Category" — defines
+  what constitutes a valid issue in each category.
+- **Output Format / JSON Schema**: The "Implementation Pattern" block near the
+  end — defines the expected JSON structure with required fields.
 - **Diff mapping table**: The table starting with `DIFF POS |ORIG LINE | NEW LINE`
   — use ORIG LINE / NEW LINE values to verify line number accuracy in comments.
 - **File diff**: The ` ```diff ``` ` block — shows exactly what lines changed.
@@ -150,20 +165,6 @@ comment or missed issue requires wider context. Do not read it in full for
 every comment. Remember: the axle LLM also had this context, so use it to
 hold the LLM accountable for what it should have known.
 
-### `output_format.md`
-
-The JSON schema specification given to the axle LLM. Contains:
-- Required fields: `summary`, `filename`, `review_comments[]`, `recommendations`,
-  `additional_notes`.
-- Per-comment required fields: `line`, `side`, `review_comment`, `code_language`,
-  `suggested_code_line_number`, `suggested_code_fix`, `category`, `severity`.
-- Eight JSON escaping rules (escape `\n`, `\\`, `\"`, `\t`, `\r`; no literal
-  line breaks in strings; no comments in JSON; standard parser compatibility).
-- Non-overrideable constraints: schema structure, line mapping rules, JSON
-  escaping.
-
-Refer to this in Section 5 to check schema compliance.
-
 ### LLM Failures
 
 Files without a `_response.json` are **LLM failures** — the axle LLM did not
@@ -201,8 +202,7 @@ total but do not include them in precision, accuracy, or other quality metrics.
 ### Step 1: Extract & Inventory
 
 1. Unzip `log-files.zip` and `files.zip`.
-2. Confirm that `review_guidelines.md`, `project_context.txt`, and `output_format.md`
-   are present alongside the archives.
+2. Confirm that `project_context.txt` is present alongside the archives.
 3. List all source files found in `files.zip`.
 4. For each source file, check which log files exist in `log-files.zip`
    (`_prompt.txt`, `_response.json`, `_metrics.json`).
@@ -267,18 +267,18 @@ Apply ALL five dimensions to every review comment.
 Determine whether the flagged issue is real and valid.
 
 - **True Positive (TP)**: The issue is real, verifiable in the source code, and
-  falls within the categories and focus areas defined in `review_guidelines.md`.
+  falls within the permitted categories and severity levels defined above.
 - **False Positive (FP)**: The issue is not real, is speculative without basis,
   contradicts the actual code, or refers to constructs that do not exist.
 - **Partial (P)**: Directionally correct but the description, scope, or impact
   is significantly wrong or exaggerated.
 
-Apply STRICT judgment per `review_guidelines.md`. Do not give benefit of the
+Apply STRICT judgment per the prompt file's embedded review guidelines. Do not give benefit of the
 doubt for vague or unsubstantiated claims.
 
 ### Dimension 2 — Severity Accuracy
 
-Apply the Severity Classification Decision Tree from `review_guidelines.md`
+Apply the Severity Classification Decision Tree from the prompt file's embedded review guidelines
 (Context Check → Certainty Check → Impact Assessment) to independently determine
 the correct severity, then compare to the claimed severity.
 
@@ -290,7 +290,7 @@ the correct severity, then compare to the claimed severity.
 
 Check two things:
 1. Is the category value one of the EXACT permitted strings from
-   `review_guidelines.md`?
+   the prompt file's embedded review guidelines?
 2. Is it the most appropriate category for the issue described?
 
 - **Correct**: Exact string, most appropriate choice.
@@ -386,8 +386,8 @@ Relevant code at line [line]:
 ```
 
 Verdict rationale: [2–3 sentences. State what the code actually does at this
-point. Explain why this is or is not a real issue per review_guidelines.md.
-Cite the specific focus area or rule from review_guidelines.md that applies.]
+point. Explain why this is or is not a real issue per the prompt file's embedded review guidelines.
+Cite the specific category or severity rule that applies.]
 
 ---
 
@@ -442,7 +442,7 @@ Grading key:
 
 List any **obvious** issues the axle approach missed in this file. "Obvious"
 means issues that are clearly visible in the source code and fall within the
-focus areas defined in `review_guidelines.md` — not speculative concerns.
+focus areas defined in the prompt file's embedded review guidelines — not speculative concerns.
 
 For each missed issue:
 
@@ -454,10 +454,10 @@ For each missed issue:
   [paste the relevant lines]
   ```
 - **Issue**: [What the problem is]
-- **Category**: [exact permitted string per review_guidelines.md]
+- **Category**: [exact permitted string per the prompt file's embedded review guidelines]
 - **Correct Severity**: [decision tree result with one-line rationale]
 - **Why it should have been caught**: [One sentence — is this a focus area
-  clearly defined in review_guidelines.md? Is it a common pattern?]
+  clearly within the permitted categories? Is it a common pattern?]
 ```
 
 If no obvious issues were missed: "No obvious missed issues identified."
@@ -524,13 +524,13 @@ visible in `[FILENAME]_prompt.txt`.
 
 | Instruction | Followed? | Evidence |
 |-------------|-----------|----------|
-| Use only exact permitted category strings (per `review_guidelines.md`) | [Yes / No / Partial] | [cite which comment if violated] |
+| Use only exact permitted category strings (per the prompt file's embedded review guidelines) | [Yes / No / Partial] | [cite which comment if violated] |
 | Apply severity decision tree (Context → Certainty → Impact) | [Yes / No / Partial] | [cite which comment if violated] |
 | Use ORIG LINE / NEW LINE values from diff table for line numbers (not DIFF POS) | [Yes / No / Partial] | [cite which comment if violated] |
 | Comment only on issues within defined focus areas | [Yes / No / Partial] | [cite which comment if violated] |
-| Provide `suggested_code_fix` with properly escaped code (per `output_format.md`) | [Yes / No / Partial] | [cite which comment if violated] |
+| Provide `suggested_code_fix` with properly escaped code (per the prompt file's embedded output format schema) | [Yes / No / Partial] | [cite which comment if violated] |
 | Output valid JSON — all required fields present, no literal line breaks in strings | [Yes / No] | [note any missing fields or escaping violations] |
-| All required fields present per `output_format.md` schema (including `additional_notes`) | [Yes / No] | [note any missing top-level or per-comment fields] |
+| All required fields present per the prompt file's embedded output format schema (including `additional_notes`) | [Yes / No] | [note any missing top-level or per-comment fields] |
 
 **Compliance verdict**: [Full compliance | Partial compliance — [N] violations |
 Poor compliance — [N] violations]
@@ -906,8 +906,8 @@ immediate next step.]
 
 ## Now Begin
 
-1. Confirm all 5 inputs are available: `log-files.zip`, `files.zip`,
-   `review_guidelines.md`, `project_context.txt`, `output_format.md`.
+1. Confirm all 3 inputs are available: `log-files.zip`, `files.zip`,
+   `project_context.txt`.
    Unzip the two archives and inventory all files.
 2. For each source file: parse logs → read source → consult `project_context.txt`
    as needed → evaluate all comments → write `[FILENAME]_eval_report.md`

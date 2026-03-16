@@ -765,8 +765,8 @@ class OpenAIAxleAdapter(BaseAxleAdapter):
                     # NAMING: derive a meaningful filename from the report content.
                     # Priority:
                     #   1. Parse '# ... Audit Report — `path/to/file.ext`' header
-                    #      → '<parent>_<stem>_eval_report.md'
-                    #   2. Meta/summary report keywords → 'meta_analysis_report.md'
+                    #      → '[FILENAME]_eval_report.md'
+                    #   2. Meta/summary report keywords → 'LLM_EVAL_META_ANALYSIS.md'
                     #   3. Fallback → 'eval_report.md'
                     # --------------------------------------------------------
                     filename = self._derive_report_filename(content_text)
@@ -812,35 +812,57 @@ class OpenAIAxleAdapter(BaseAxleAdapter):
         """Derive a meaningful filename from the audit report markdown content.
 
         Strategy:
-        1. Parse '# Comprehensive Audit Report — `path/to/file.ext`'
-           → '<parent>_<stem>_eval_report.md'
-        2. Meta/summary keywords in the first heading
-           → 'meta_analysis_report.md'
-        3. Fallback → 'eval_report.md'
+        1. Parse '# ... Report: filename.js' or '# ... Report — `path/to/file.ext`'
+           heading → '[FILENAME]_eval_report.md'
+        2. Check '**File**: `path/to/file.ext`' line as fallback for file path
+        3. Meta/summary keywords in the first heading
+           → 'LLM_EVAL_META_ANALYSIS.md'
+        4. Fallback → 'eval_report.md'
         """
         import re
 
         first_heading = ''
+        file_line = ''
         for line in content_text.splitlines():
             stripped = line.strip()
-            if stripped.startswith('#'):
+            if not first_heading and stripped.startswith('#'):
                 first_heading = stripped
+            if stripped.startswith('**File**:'):
+                file_line = stripped
                 break
 
-        # Pattern: heading contains a backtick-quoted file path
+        # Meta / summary report — check first to avoid false matches below
+        lower = first_heading.lower()
+        if any(kw in lower for kw in ('meta', 'summary', 'overall')) or 'meta-analysis' in lower or 'meta analysis' in lower:
+            return 'LLM_EVAL_META_ANALYSIS.md'
+
+        # Strategy 1a: heading ends with ': filename.ext' (e.g. "Report: hooks_index.js")
+        colon_match = re.search(r':\s*(\S+\.\w+)\s*$', first_heading)
+        if colon_match:
+            filename = colon_match.group(1)
+            stem = Path(filename).stem  # e.g. "hooks_index" from "hooks_index.js"
+            return f"{stem}_eval_report.md"
+
+        # Strategy 1b: heading contains backtick-quoted file path
         backtick_match = re.search(r'`([^`]+)`', first_heading)
         if backtick_match:
             file_path = backtick_match.group(1)
-            stem = Path(file_path).stem       # e.g. "index" from "src/hooks/index.js"
-            parent = Path(file_path).parent.name  # e.g. "hooks"
+            stem = Path(file_path).stem
+            parent = Path(file_path).parent.name
             if parent and parent not in ('.', ''):
                 return f"{parent}_{stem}_eval_report.md"
             return f"{stem}_eval_report.md"
 
-        # Meta / summary report
-        lower = first_heading.lower()
-        if any(kw in lower for kw in ('meta', 'summary', 'analysis', 'overall')):
-            return 'meta_analysis_report.md'
+        # Strategy 2: '**File**: `path/to/file.ext`' line
+        if file_line:
+            backtick_match = re.search(r'`([^`]+)`', file_line)
+            if backtick_match:
+                file_path = backtick_match.group(1)
+                stem = Path(file_path).stem
+                parent = Path(file_path).parent.name
+                if parent and parent not in ('.', ''):
+                    return f"{parent}_{stem}_eval_report.md"
+                return f"{stem}_eval_report.md"
 
         return 'eval_report.md'
 
