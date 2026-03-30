@@ -645,9 +645,10 @@ class OpenAIAxleAdapter(BaseAxleAdapter):
         
         with open(prompt_file, 'r', encoding='utf-8') as f:
             prompt = f.read()
-        
+        prompt = prompt.replace("[today's date]", datetime.date.today().isoformat())
+
         print(f"📄 Loaded prompt from: {prompt_file}")
-        
+
         result = await self.create_message_with_files(file_ids, prompt, 32*1000)
         
         if result.get("message") and hasattr(result["message"], 'model_dump'):

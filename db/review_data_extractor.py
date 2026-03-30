@@ -408,6 +408,48 @@ class ReviewDataExtractor:
             print(f"  Warning: Failed to fetch first seen time for PR {pr_number}: {e}")
             return None
 
+    def validate_review_belongs_to_pr(
+        self,
+        repository: str,
+        pr_number: str,
+        review_id: str
+    ) -> bool:
+        """
+        Check whether the given review_id actually belongs to the specified
+        repository + pr_number in the review_eval_metrics table.
+
+        Returns:
+            True if the review_id is associated with the PR, False otherwise.
+        """
+        query = f"""
+            SELECT 1
+            FROM {FULL_TABLE_NAME}
+            WHERE repository = %s
+              AND review_id = %s
+            LIMIT 1
+        """
+        try:
+            with self.cursor() as cursor:
+                cursor.execute(query, (repository, review_id))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                # review_id exists — now check if it matches the given pr_number
+                check_query = f"""
+                    SELECT 1
+                    FROM {FULL_TABLE_NAME}
+                    WHERE repository = %s
+                      AND review_id = %s
+                      AND pr_number = %s
+                    LIMIT 1
+                """
+                cursor.execute(check_query, (repository, review_id, pr_number))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            print(f"  Warning: Failed to validate review_id association: {e}")
+            # On error, don't block the pipeline — just warn
+            return True
+
     def get_context_from_review_metrics(
         self,
         repository: str,
