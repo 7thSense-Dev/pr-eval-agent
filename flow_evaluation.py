@@ -12,7 +12,7 @@ Single entry-point that:
 
 Usage:
     # DB extraction only
-    python flow_evaluation.py --pr 123 --repo owner/repo --mode extract_only
+    python flow_evaluation.py --pr 123 --repo owner/repo --mode extract_only --review-id 123456
 
     # Axle review
     python flow_evaluation.py --pr 123 --repo owner/repo --review-approach axle
@@ -479,9 +479,13 @@ async def main():
     )
     parser.add_argument(
         "--review-id",
-        default=None,
+        required=True,
         dest="review_id",
+<<<<<<< Updated upstream
         help="Optional review ID used for fetching repo context from eval metrics"
+=======
+        help="Review ID used for fetching repo context from eval metrics. Required for all modes, including extract_only."
+>>>>>>> Stashed changes
     )
     parser.add_argument(
         "--input-dir",
@@ -495,7 +499,11 @@ async def main():
 
     args = parser.parse_args()
 
+<<<<<<< Updated upstream
     # Validate: --review-approach is required unless --mode extract_only
+=======
+    # Validate: --review-approach is required unless --mode extract_only.
+>>>>>>> Stashed changes
     if args.mode != "extract_only" and not args.review_approach:
         parser.error("--review-approach is required unless --mode extract_only is set.")
 
@@ -515,17 +523,51 @@ async def main():
         return 0
 
     # -------------------------------------------------------------------------
+<<<<<<< Updated upstream
     # Resolve input directory
+=======
+    # Route to provider
+    # -------------------------------------------------------------------------
+    pr_dir = Path(pr_result["pr_dir"])
+
+    if args.provider == "gemini" or args.review_approach == "llm":
+        # Per-file text-prompt path: each source file gets its own isolated API
+        # call so no provider runs out of context across files.
+        # gemini → "gemini"  |  claude+llm → "claude_llm"  |  openai+llm → "openai_llm"
+        uploaded_dir = pr_dir / "uploaded_to_eval_agent"
+        file_paths = [str(f) for f in sorted(uploaded_dir.iterdir()) if f.is_file()]
+        adapter_id = args.provider if args.provider == "gemini" else f"{args.provider}_llm"
+
+        print(f"\nProvider        : {args.provider.upper()} (per-file via AxleService)")
+        print(f"Review Approach : {args.review_approach.upper()}")
+        print(f"Adapter         : {adapter_id}")
+        print(f"PR Dir          : {pr_dir}")
+
+        axle_service = AxleService(project_root=PROJECT_ROOT, pr_dir=str(pr_dir))
+        try:
+            result = await axle_service.execute_task(
+                provider=adapter_id,
+                file_paths=file_paths,
+                prompt_path="",
+            )
+            return 0 if result.get("success") else 1
+        finally:
+            await axle_service.cleanup()
+
+    # -------------------------------------------------------------------------
+    # axle approach: claude / openai via file upload + code execution
+>>>>>>> Stashed changes
     # -------------------------------------------------------------------------
     if args.input_dir:
         input_dir = Path(args.input_dir)
     else:
-        input_dir = DEFAULT_AXLE_INPUT if args.review_approach == "axle" else DEFAULT_LLM_INPUT
+        input_dir = DEFAULT_AXLE_INPUT
 
     print(f"\nReview Approach : {args.review_approach.upper()}")
     print(f"Provider        : {args.provider.upper()}")
     print(f"Input Dir       : {input_dir}")
 
+<<<<<<< Updated upstream
     # -------------------------------------------------------------------------
     # Step 2–5: Copy templates, upload, run review, save outputs
     # -------------------------------------------------------------------------
@@ -533,6 +575,9 @@ async def main():
         return await run_llm_mode(args, pr_result, input_dir)
     else:
         return await run_axle_mode(args, pr_result, input_dir)
+=======
+    return await run_axle_mode(args, pr_result, input_dir)
+>>>>>>> Stashed changes
 
 
 if __name__ == "__main__":

@@ -102,10 +102,16 @@ class AnthropicAxleAdapter(BaseAxleAdapter):
             loop = asyncio.get_event_loop()
             
             def _sync_upload():
-                with open(file_path, 'rb') as f:
-                    return self.client.beta.files.upload(
-                        file=(file_path.name, f, mime_type)
-                    )
+                logger.info("Uploading file to Claude", file_path=str(file_path), mime_type=mime_type)
+                
+                # Log the upload parameters
+                upload_kwargs = {
+                    "file": (file_path.name, open(file_path, 'rb'), mime_type),
+                    "betas": ["files-api-2025-04-14"]
+                }
+                logger.info("Upload parameters", **{k: str(v) if k != 'file' else f"<file:{file_path.name}>" for k, v in upload_kwargs.items()})
+                
+                return self.client.beta.files.upload(**upload_kwargs)
             
             file_response = await loop.run_in_executor(None, _sync_upload)
             

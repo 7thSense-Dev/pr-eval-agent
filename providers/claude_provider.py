@@ -92,7 +92,8 @@ class ClaudeProvider(BaseConversationProvider):
             # Upload using beta.files API
             with open(file_path, 'rb') as f:
                 file_response = self.client.beta.files.upload(
-                    file=(file_path.name, f, mime_type)
+                    file=(file_path.name, f, mime_type),
+                    betas=["files-api-2025-04-14"],
                 )
             
             file_id = file_response.id

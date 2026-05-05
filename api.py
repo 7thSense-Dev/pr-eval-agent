@@ -201,6 +201,7 @@ async def run_evaluation(
             message=f"failed: Template copy error — {type(exc).__name__}: {exc}",
         )
 
+<<<<<<< Updated upstream
     # -----------------------------------------------------------------------
     # Step 3 – Collect all files to upload
     # -----------------------------------------------------------------------
@@ -214,6 +215,34 @@ async def run_evaluation(
             review_id=review_id,
             message=f"failed: File list error — {type(exc).__name__}: {exc}",
         )
+=======
+    if provider == Provider.gemini or review_approach == "llm":
+        # --- Per-file text-prompt path (all providers for llm approach, gemini for any) ---
+        # Each source file gets its own isolated API call — no context exhaustion.
+        uploaded_dir = pr_dir / "uploaded_to_eval_agent"
+        file_paths = [str(f) for f in sorted(uploaded_dir.iterdir()) if f.is_file()]
+        adapter_id = provider.value if provider == Provider.gemini else f"{provider.value}_llm"
+        try:
+            success = await _run_axle(pr_dir, file_paths, "", adapter_id)
+        except Exception as exc:
+            return EvalResponse(
+                pr_num=pr_number,
+                repo_name=repo_name,
+                review_id=review_id,
+                message=f"failed: Per-file pipeline error — {exc}",
+            )
+    else:
+        # --- axle approach: claude / openai via file upload + code execution ---
+        try:
+            copy_templates(pr_dir, review_approach, input_dir)
+        except Exception as exc:
+            return EvalResponse(
+                pr_num=pr_number,
+                repo_name=repo_name,
+                review_id=review_id,
+                message=f"failed: Template copy error — {type(exc).__name__}: {exc}",
+            )
+>>>>>>> Stashed changes
 
     prompt_path = str(pr_dir / "code_execution_prompt.txt")
     if not Path(prompt_path).exists():
@@ -224,6 +253,7 @@ async def run_evaluation(
             message=f"failed: Prompt file not found at {prompt_path}",
         )
 
+<<<<<<< Updated upstream
     # -----------------------------------------------------------------------
     # Step 4 – Run review pipeline
     # -----------------------------------------------------------------------
@@ -239,6 +269,26 @@ async def run_evaluation(
             review_id=review_id,
             message=f"failed: Review pipeline error — {exc}",
         )
+=======
+        prompt_path = str(pr_dir / "code_execution_prompt.txt")
+        if not Path(prompt_path).exists():
+            return EvalResponse(
+                pr_num=pr_number,
+                repo_name=repo_name,
+                review_id=review_id,
+                message=f"failed: Prompt file not found at {prompt_path}",
+            )
+
+        try:
+            success = await _run_axle(pr_dir, file_paths, prompt_path, provider.value)
+        except Exception as exc:
+            return EvalResponse(
+                pr_num=pr_number,
+                repo_name=repo_name,
+                review_id=review_id,
+                message=f"failed: Review pipeline error — {exc}",
+            )
+>>>>>>> Stashed changes
 
     return EvalResponse(
         pr_num=pr_number,
@@ -253,6 +303,10 @@ async def run_evaluation(
 # Private helpers
 # ---------------------------------------------------------------------------
 
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 async def _run_axle(pr_dir: Path, file_paths: list, prompt_path: str, provider: str) -> bool:
     """Run Axle review engine (async)."""
     axle_service = AxleService(project_root=PROJECT_ROOT, pr_dir=str(pr_dir))

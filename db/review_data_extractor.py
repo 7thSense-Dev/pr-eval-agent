@@ -215,7 +215,8 @@ class ReviewDataExtractor:
         repository: Optional[str] = None,
         pr_number: Optional[str] = None,
         latest_only: bool = False,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        review_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Fetch review records with flexible filtering.
@@ -223,8 +224,13 @@ class ReviewDataExtractor:
         Args:
             repository: Filter by repository (e.g., "owner/repo")
             pr_number: Filter by PR number
-            latest_only: If True, only return records with the latest created_at
+            latest_only: If True, only return records with the latest created_at.
+                Ignored when review_id is given (a single review_id already
+                pinpoints exactly one run).
             limit: Maximum number of records to return
+            review_id: Filter to a specific review_id. When provided, latest_only
+                is forced off so we return every file from THAT specific run
+                (not whatever the latest run for the PR happens to be).
 
         Returns:
             List of review records as dictionaries
@@ -233,12 +239,21 @@ class ReviewDataExtractor:
         params = []
 
         if repository:
-            conditions.append("repository = %s")
-            params.append(repository)
+            repo_part = repository.split('/')[-1]
+            conditions.append("repository ILIKE %s")
+            params.append(f"%{repo_part}%")
 
         if pr_number:
             conditions.append("pr_number = %s")
             params.append(str(pr_number))
+
+        if review_id:
+            conditions.append("review_id = %s")
+            params.append(review_id)
+            # A specific review_id already identifies one run; latest_only would
+            # narrow further by created_at and could return nothing if rows in
+            # the run share a timestamp other than MAX(). Force it off.
+            latest_only = False
 
         where_clause = ""
         if conditions:
@@ -250,7 +265,7 @@ class ReviewDataExtractor:
                 SELECT MAX(created_at) as latest_timestamp
                 FROM {FULL_TABLE_NAME}
                 {where_clause}
-                AND template_name != 'review_summary'
+                AND (template_name != 'review_summary' OR template_name IS NULL)
             """
 
             with self.cursor() as cursor:
@@ -329,22 +344,31 @@ class ReviewDataExtractor:
     def get_latest_pr_reviews(
         self,
         repository: str,
-        pr_number: str
+        pr_number: str,
+        review_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Convenience method: Get latest reviews for a specific PR.
+        Convenience method: Get reviews for a specific PR.
+
+        If review_id is given, returns every file from THAT specific run.
+        Otherwise, returns the latest run for the PR.
 
         Args:
             repository: Repository name (e.g., "owner/repo")
             pr_number: PR number
+            review_id: When provided, pin the lookup to this specific review_id
+                instead of MAX(created_at). Required when the caller wants the
+                files from a particular review (not whichever run happened to
+                run last for the PR).
 
         Returns:
-            List of review records with the latest timestamp
+            List of review records.
         """
         return self.get_reviews(
             repository=repository,
             pr_number=pr_number,
-            latest_only=True
+            latest_only=(review_id is None),
+            review_id=review_id,
         )
 
     def get_repo_id_by_name(self, repository: str) -> Optional[str]:
@@ -385,11 +409,12 @@ class ReviewDataExtractor:
         query = f"""
             SELECT MIN(created_at) as first_seen
             FROM {FULL_TABLE_NAME}
-            WHERE repository = %s AND pr_number = %s
+            WHERE repository ILIKE %s AND pr_number = %s
         """
         try:
+            repo_part = f"%{repository.split('/')[-1]}%"
             with self.cursor() as cursor:
-                cursor.execute(query, (repository, str(pr_number)))
+                cursor.execute(query, (repo_part, str(pr_number)))
                 result = cursor.fetchone()
                 if result and result['first_seen']:
                     first_seen = result['first_seen']
@@ -408,6 +433,52 @@ class ReviewDataExtractor:
             print(f"  Warning: Failed to fetch first seen time for PR {pr_number}: {e}")
             return None
 
+<<<<<<< Updated upstream
+=======
+    def validate_review_belongs_to_pr(
+        self,
+        repository: str,
+        pr_number: str,
+        review_id: str
+    ) -> bool:
+        """
+        Check whether the given review_id actually belongs to the specified
+        repository + pr_number in the review_eval_metrics table.
+
+        Returns:
+            True if the review_id is associated with the PR, False otherwise.
+        """
+        query = f"""
+            SELECT 1
+            FROM {FULL_TABLE_NAME}
+            WHERE repository ILIKE %s
+              AND review_id = %s
+            LIMIT 1
+        """
+        try:
+            repo_part = f"%{repository.split('/')[-1]}%"
+            with self.cursor() as cursor:
+                cursor.execute(query, (repo_part, review_id))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                # review_id exists — now check if it matches the given pr_number
+                check_query = f"""
+                    SELECT 1
+                    FROM {FULL_TABLE_NAME}
+                    WHERE repository ILIKE %s
+                      AND review_id = %s
+                      AND pr_number = %s
+                    LIMIT 1
+                """
+                cursor.execute(check_query, (repo_part, review_id, pr_number))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            print(f"  Warning: Failed to validate review_id association: {e}")
+            # On error, don't block the pipeline — just warn
+            return True
+
+>>>>>>> Stashed changes
     def get_context_from_review_metrics(
         self,
         repository: str,
@@ -423,11 +494,12 @@ class ReviewDataExtractor:
             project_context string or None if not found.
         """
         conditions = [
-            "repository = %s",
+            "repository ILIKE %s",
             "pr_number = %s",
             "status = 'success'",
         ]
-        params: list = [repository, str(pr_number)]
+        repo_part = f"%{repository.split('/')[-1]}%"
+        params: list = [repo_part, str(pr_number)]
 
         if review_id:
             conditions.append("review_id = %s")
@@ -545,14 +617,16 @@ class ReviewDataExtractor:
         # Create export directory
         self._create_export_directory(output_dir)
         
-        # 1. Fetch Reviews (using latest_only=True as per typical requirement for single PR)
-        # We can use get_reviews directly. 
-        # Assuming repo+pr is unique enough or we want all.
-        
+        # 1. Fetch Reviews
+        # When review_id is provided, pin to that specific review run so the
+        # file content / prompts / responses / metrics we export all come from
+        # the run the user actually asked about. Without review_id, fall back
+        # to the latest run for the PR.
         reviews = self.get_reviews(
             repository=repository,
             pr_number=pr_number,
-            latest_only=True # Fetching latest reviews for this PR
+            latest_only=(review_id is None),
+            review_id=review_id,
         )
         
         if not reviews:
@@ -573,18 +647,25 @@ class ReviewDataExtractor:
             pr_earliest_created_at = min(r['created_at'] for r in reviews if r.get('created_at'))
 
         # 2b. First check review_eval_metrics.metadata_ for project_context
-        context = self.get_context_from_review_metrics(repository, pr_number, review_id=review_id)
+        context = None
+        local_context_path = self.export_dir / "PROJECT_CONTEXT_EXPORT.txt"
+        if local_context_path.exists():
+            print(f"  Using local project context from: {local_context_path}")
+            with open(local_context_path, "r", encoding="utf-8") as f:
+                context = f.read()
+        else:
+            context = self.get_context_from_review_metrics(repository, pr_number, review_id=review_id)
 
-        if not context:
-            # Fallback: look up repo_id and query repository_context table
-            print(f"  Fetching repo_id for '{repository}'...")
-            repo_id = self.get_repo_id_by_name(repository)
+            if not context:
+                # Fallback: look up repo_id and query repository_context table
+                print(f"  Fetching repo_id for '{repository}'...")
+                repo_id = self.get_repo_id_by_name(repository)
 
-            if not repo_id:
-                print(f"  Warning: Could not find valid repo_id for '{repository}' in repository_context table")
-            else:
-                print(f"  Fetching repo context for repo_id '{repo_id}' (PR earliest: {pr_earliest_created_at})...")
-                context = self.get_repo_context(repository, repo_id, pr_earliest_created_at)
+                if not repo_id:
+                    print(f"  Warning: Could not find valid repo_id for '{repository}' in repository_context table")
+                else:
+                    print(f"  Fetching repo context for repo_id '{repo_id}' (PR earliest: {pr_earliest_created_at})...")
+                    context = self.get_repo_context(repository, repo_id, pr_earliest_created_at)
             
         
         # 3. Create Directories

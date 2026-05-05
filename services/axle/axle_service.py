@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import structlog
 
-from services.axle.adapters import AnthropicAxleAdapter, OpenAIAxleAdapter
+from services.axle.adapters import (
+    AnthropicAxleAdapter, OpenAIAxleAdapter, GeminiAxleAdapter,
+    AnthropicPerFileAdapter, OpenAIPerFileAdapter,
+)
 from utils.parser import extract_file_ids_from_response
 
 logger = structlog.get_logger()
@@ -41,8 +44,11 @@ class AxleService:
 
         # Pre-initialize all adapters
         self.adapters = {
-            "claude": AnthropicAxleAdapter(),
-            "openai": OpenAIAxleAdapter()
+            "claude": AnthropicAxleAdapter(),       # axle approach: file upload + code execution
+            "openai": OpenAIAxleAdapter(),          # axle approach: file upload + code execution
+            "gemini": GeminiAxleAdapter(),          # all approaches: per-file text prompt
+            "claude_llm": AnthropicPerFileAdapter(), # llm approach: per-file text prompt
+            "openai_llm": OpenAIPerFileAdapter(),   # llm approach: per-file text prompt
         }
 
         # Current active adapter
@@ -232,6 +238,14 @@ class AxleService:
                 else:
                     downloaded = {}
                     print("⚠️  No container ID found")
+
+            elif provider in ('gemini', 'claude_llm', 'openai_llm'):
+                # Reports already written to artifacts_dir by the per-file adapter
+                downloaded = {
+                    p.name: {"local_file_path": str(p)}
+                    for p in self.artifacts_dir.iterdir()
+                    if p.is_file() and p.suffix == ".md"
+                }
 
             result['steps']['download'] = {
                 'success': True,
