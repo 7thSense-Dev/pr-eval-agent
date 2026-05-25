@@ -1,0 +1,14 @@
+{
+  "name": "pr-eval-agent-promptfoo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Promptfoo evaluation harness for pr-eval-agent prompts and DB-stored reviews",
+  "scripts": {
+    "eval": "promptfoo eval",
+    "view": "promptfoo view",
+    "list": "promptfoo list"
+  },
+  "devDependencies": {
+    "promptfoo": "latest"
+  }
+}
